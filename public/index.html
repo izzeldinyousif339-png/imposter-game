@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎃 Imposter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="particles" class="particles" aria-hidden="true"></div>
+  <canvas id="confetti-canvas" class="confetti-canvas"></canvas>
+  <button id="btn-mute" class="btn-mute" aria-label="Toggle sound" title="Toggle sound">🔊</button>
+
+  <div id="app" class="app">
+    <div id="start-screen" class="screen active">
+      <div class="pumpkin-logo">🎃</div>
+      <h1>IMPOSTER</h1>
+      <p class="subtitle">This October, someone at the table isn't wearing the costume you think they are.</p>
+
+      <div class="button-group">
+        <button id="btn-host" class="btn btn-primary">HOST GAME</button>
+        <button id="btn-player" class="btn btn-secondary">JOIN GAME</button>
+      </div>
+
+      <p class="footer-hint">🕸️ Built for 4 players and one host device 🕸️</p>
+    </div>
+
+    <div id="host-screen" class="screen">
+      <div class="header">
+        <h2>🎃 Game Host</h2>
+        <button class="btn-back" onclick="backToStart()">← Back</button>
+      </div>
+
+      <div class="host-container">
+        <div id="host-lobby" class="section lobby-section">
+          <div class="game-code-display">
+            <h3>GAME CODE</h3>
+            <div class="code-large" id="game-code-display">-</div>
+            <button class="btn btn-small" onclick="copyCode()">COPY CODE</button>
+            <p class="join-hint">Players: open this site → JOIN GAME → enter the code above</p>
+          </div>
+
+          <div class="players-list">
+            <h3>TRICK-OR-TREATERS (<span id="player-count">0</span>)</h3>
+            <div id="players-container" class="players-grid">
+              <p class="placeholder">Waiting for players to join...</p>
+            </div>
+          </div>
+
+          <button id="btn-start-game" class="btn btn-primary" disabled>START GAME</button>
+          <p class="players-needed-text" id="players-needed-text">Need 4 players to begin</p>
+        </div>
+
+        <div id="host-playing" class="section hidden">
+          <div class="round-info">
+            <h3>ROUND <span id="current-round">1</span> / <span id="max-rounds">3</span></h3>
+          </div>
+
+          <div class="word-card host-word-card">
+            <div class="word-card-label">THIS ROUND'S SECRET WORD</div>
+            <div class="word-card-word" id="host-current-word">-</div>
+            <p class="word-card-hint">Everyone but the imposter can see this. Have players give a verbal clue each, then suspect away.</p>
+          </div>
+
+          <div class="suspicions-display">
+            <h3>SUSPICION STATUS</h3>
+            <div id="suspicions-list"></div>
+          </div>
+
+          <button id="btn-reveal" class="btn btn-danger">🎃 REVEAL THE IMPOSTER</button>
+
+          <div class="host-only-scores">
+            <h3>📊 LIVE SCORES <span class="host-only-tag">(host only — players never see this)</span></h3>
+            <div id="host-live-scores" class="leaderboard"></div>
+          </div>
+        </div>
+
+        <div id="host-leaderboard" class="section hidden">
+          <h3>🏆 FINAL LEADERBOARD</h3>
+          <div id="host-winner-banner" class="winner-banner"></div>
+          <div id="leaderboard-display" class="leaderboard"></div>
+          <button class="btn btn-primary" onclick="location.reload()">NEW GAME</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="player-screen" class="screen">
+      <div class="header">
+        <h3>🎃 Imposter Hunter</h3>
+        <button class="btn-back" onclick="backToStart()">← Back</button>
+      </div>
+
+      <div id="player-join" class="join-container">
+        <h2>JOIN GAME</h2>
+        <input type="text" id="game-code-input" placeholder="Enter game code" maxlength="6" class="input-large" autocomplete="off">
+        <input type="text" id="team-name-input" placeholder="Your house color" class="input-large" maxlength="20" autocomplete="off">
+        <button id="btn-join" class="btn btn-primary">JOIN</button>
+        <p id="join-error" class="error-message"></p>
+      </div>
+
+      <div id="player-lobby" class="section hidden">
+        <div class="player-info-display">
+          <div class="waiting-pumpkin">🎃</div>
+          <h3>Waiting for the host to start...</h3>
+          <p id="your-name-display"></p>
+          <p id="your-team-display"></p>
+          <p id="players-count-display"></p>
+        </div>
+      </div>
+
+      <div id="player-playing" class="section hidden">
+        <div class="voting-container">
+          <h2>Round <span id="player-round">1</span></h2>
+
+          <div id="word-card-innocent" class="word-card hidden">
+            <div class="word-card-label">THE SECRET WORD</div>
+            <div class="word-card-word" id="player-current-word">-</div>
+            <p class="word-card-hint">Give one verbal clue about it out loud when it's your turn. Don't say the word itself!</p>
+          </div>
+
+          <div id="word-card-imposter" class="word-card imposter hidden">
+            <div class="word-card-label">🎭 YOU'RE BLENDING IN</div>
+            <div class="word-card-word">IMPOSTER</div>
+            <p class="word-card-hint">You don't get the word. Listen to everyone's clues, bluff your own, and don't get caught.</p>
+          </div>
+
+          <h3>Suspect anyone? You can change your mind anytime.</h3>
+          <div id="voting-options" class="voting-grid"></div>
+          <p id="vote-status" class="status-message"></p>
+        </div>
+      </div>
+
+      <div id="player-reveal" class="section hidden">
+        <div class="reveal-container">
+          <h2>🎃 IMPOSTER REVEALED</h2>
+          <p id="reveal-text"></p>
+          <p id="you-got-it" class="you-got-it-message hidden">✅ YOUR TEAM SCORES A POINT!</p>
+          <p id="next-round-text" class="next-round-message"></p>
+        </div>
+      </div>
+
+      <div id="player-ended" class="section hidden">
+        <div class="final-results">
+          <h2>GAME OVER</h2>
+          <div id="player-winner-banner" class="winner-banner"></div>
+          <div id="final-leaderboard"></div>
+          <p class="game-complete">Happy Halloween! 🎃</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
