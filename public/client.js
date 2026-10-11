@@ -7,6 +7,10 @@ let teamName = null;
 let myVote = null;
 let allPlayers = [];
 
+// Host-only running total across every game played from this device this
+// session (survives Play Again, resets only on page reload). Keyed by house/team name.
+const overallScores = {};
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -409,6 +413,14 @@ socket.on('game-ended', (data) => {
     document.getElementById('host-leaderboard').classList.remove('hidden');
     renderWinnerBanner(document.getElementById('host-winner-banner'), data.leaderboard);
     renderLeaderboard(document.getElementById('leaderboard-display'), data.leaderboard);
+
+    data.leaderboard.forEach(entry => {
+      const key = entry.team || entry.name;
+      if (!overallScores[key]) overallScores[key] = { name: entry.name, team: entry.team, score: 0 };
+      overallScores[key].score += entry.score;
+    });
+    const overall = Object.values(overallScores).sort((a, b) => b.score - a.score);
+    renderLeaderboard(document.getElementById('overall-leaderboard'), overall);
   }
 
   if (data.leaderboard && data.leaderboard.length > 0 && data.leaderboard[0].score > 0) {
