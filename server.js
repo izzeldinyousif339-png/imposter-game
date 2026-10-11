@@ -209,13 +209,21 @@ io.on('connection', (socket) => {
     const imposterData = game.players.find(p => p.code === game.imposter);
 
     // Only locked-in final votes count. Among everyone who locked in the
-    // correct imposter, whoever did it FIRST (lowest order) is the sole scorer.
+    // correct imposter, whoever did it FIRST (lowest order) would be the scorer --
+    // but only if a MAJORITY of the other players also locked in correctly.
+    // One sharp guess isn't enough; the room has to actually be onto the imposter.
     const correctLockIns = Object.entries(game.finalVotes)
       .filter(([, v]) => v.target === game.imposter)
       .sort((a, b) => a[1].order - b[1].order);
-    const winnerCode = correctLockIns.length > 0 ? correctLockIns[0][0] : null;
 
-    // Nobody locked in the correct imposter — the imposter's own house scores instead.
+    const totalVoters = game.players.length - 1; // everyone except the imposter
+    const majorityThreshold = Math.floor(totalVoters / 2) + 1;
+    const isMajority = correctLockIns.length >= majorityThreshold;
+
+    const winnerCode = isMajority && correctLockIns.length > 0 ? correctLockIns[0][0] : null;
+
+    // Imposter scores whenever the majority didn't catch them -- whether that's
+    // zero correct guesses or just not enough of them.
     const imposterEscaped = !winnerCode;
 
     if (winnerCode && game.scores[winnerCode]) {
@@ -233,7 +241,9 @@ io.on('connection', (socket) => {
       imposterTeam: imposterData.team,
       word: game.currentWord,
       imposterEscaped,
-      winnerTeam: winnerPlayer ? winnerPlayer.team : null
+      winnerTeam: winnerPlayer ? winnerPlayer.team : null,
+      correctCount: correctLockIns.length,
+      totalVoters
     };
 
     game.players.forEach(p => {

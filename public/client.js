@@ -428,7 +428,9 @@ socket.on('imposter-revealed', (data) => {
   document.getElementById('player-reveal').classList.remove('hidden');
 
   document.getElementById('reveal-text').textContent = data.imposterEscaped
-    ? `${data.imposterTeam} was the imposter and got away with it! The word was ${data.word}.`
+    ? (data.correctCount > 0
+        ? `${data.imposterTeam} was the imposter! ${data.correctCount} of ${data.totalVoters} suspected them — not a majority, so they got away with it! The word was ${data.word}.`
+        : `${data.imposterTeam} was the imposter and got away with it! The word was ${data.word}.`)
     : `${data.imposterTeam} was the imposter! The word was ${data.word}. ${data.winnerTeam} locked in first!`;
 
   const youGotIt = document.getElementById('you-got-it');
@@ -457,8 +459,10 @@ socket.on('host-imposter-revealed', (data) => {
   summary.appendChild(el('strong', null, `${data.imposterTeam} was the imposter!`));
   summary.appendChild(el('p', null, `The word was ${data.word}.`));
   const scoredText = data.imposterEscaped
-    ? `No one locked in the correct answer — ${data.imposterTeam} scores a point for evading capture!`
-    : `${data.winnerTeam} locked in first — they score!`;
+    ? (data.correctCount > 0
+        ? `${data.correctCount} of ${data.totalVoters} correctly suspected ${data.imposterTeam} — not a majority, so ${data.imposterTeam} still scores a point for evading capture!`
+        : `No one locked in the correct answer — ${data.imposterTeam} scores a point for evading capture!`)
+    : `${data.winnerTeam} locked in first, backed by a majority — they score!`;
   summary.appendChild(el('p', null, scoredText));
   suspicionsList.appendChild(summary);
 
