@@ -49,7 +49,10 @@ function createGame(hostSocketId) {
     imposter: null,
     currentWord: null,
     suspicions: {},
-    scores: {}
+    scores: {},
+    votingTime: false,
+    finalVotes: {},
+    voteOrderCounter: 0
   };
   games.set(gameCode, game);
   return game;
@@ -62,6 +65,9 @@ function startRound(io, game, gameCode) {
   game.imposter = imposter.code;
   game.currentWord = pickWord(game.currentWord);
   game.suspicions = {};
+  game.votingTime = false;
+  game.finalVotes = {};
+  game.voteOrderCounter = 0;
   game.players.forEach(p => { game.suspicions[p.code] = null; });
 
   game.players.forEach(p => {
@@ -86,12 +92,16 @@ function sendHostSuspicionStatus(io, game) {
   const status = game.players.map(p => {
     const targetCode = game.suspicions[p.code];
     const target = targetCode ? game.players.find(pl => pl.code === targetCode) : null;
+    const lockedVote = game.finalVotes[p.code];
+    const lockedTarget = lockedVote ? game.players.find(pl => pl.code === lockedVote.target) : null;
     return {
       name: p.name,
       team: p.team,
       voted: !!targetCode,
       suspectsName: target ? target.name : null,
-      suspectsTeam: target ? target.team : null
+      suspectsTeam: target ? target.team : null,
+      lockedIn: !!lockedVote,
+      lockedTeam: lockedTarget ? lockedTarget.team : null
     };
   });
   io.to(game.host).emit('host-suspicion-status', { suspicions: status });
@@ -161,8 +171,34 @@ io.on('connection', (socket) => {
 
     const player = game.players.find(p => p.id === socket.id);
     if (!player) return;
+    if (game.finalVotes[player.code]) return; // locked in — no more changes
 
     game.suspicions[player.code] = data.suspicionCode;
+    sendHostSuspicionStatus(io, game);
+  });
+
+  socket.on('start-voting-time', (data) => {
+    const game = games.get(data.gameCode);
+    if (!game || game.host !== socket.id) return;
+    if (game.votingTime) return;
+
+    game.votingTime = true;
+    io.to(`game-${game.code}`).emit('voting-time-started');
+  });
+
+  socket.on('lock-in-vote', (data) => {
+    const game = games.get(data.gameCode);
+    if (!game || !game.votingTime) return;
+
+    const player = game.players.find(p => p.id === socket.id);
+    if (!player || game.finalVotes[player.code]) return;
+
+    const target = game.suspicions[player.code];
+    if (!target) return; // must have a suspicion selected to lock in
+
+    game.voteOrderCounter += 1;
+    game.finalVotes[player.code] = { target, order: game.voteOrderCounter };
+    socket.emit('vote-locked');
     sendHostSuspicionStatus(io, game);
   });
 
@@ -171,36 +207,39 @@ io.on('connection', (socket) => {
     if (!game || game.host !== socket.id) return;
 
     const imposterData = game.players.find(p => p.code === game.imposter);
-    const correctCodes = Object.entries(game.suspicions)
-      .filter(([, suspicionCode]) => suspicionCode === game.imposter)
-      .map(([playerCode]) => playerCode);
 
-    // Nobody caught the imposter — the imposter's own house scores instead.
-    const imposterEscaped = correctCodes.length === 0;
+    // Only locked-in final votes count. Among everyone who locked in the
+    // correct imposter, whoever did it FIRST (lowest order) is the sole scorer.
+    const correctLockIns = Object.entries(game.finalVotes)
+      .filter(([, v]) => v.target === game.imposter)
+      .sort((a, b) => a[1].order - b[1].order);
+    const winnerCode = correctLockIns.length > 0 ? correctLockIns[0][0] : null;
 
-    correctCodes.forEach(code => {
-      if (game.scores[code]) game.scores[code].score += 1;
-    });
+    // Nobody locked in the correct imposter — the imposter's own house scores instead.
+    const imposterEscaped = !winnerCode;
+
+    if (winnerCode && game.scores[winnerCode]) {
+      game.scores[winnerCode].score += 1;
+    }
     if (imposterEscaped && game.scores[game.imposter]) {
       game.scores[game.imposter].score += 1;
     }
     sendHostScores(io, game);
+
+    const winnerPlayer = winnerCode ? game.players.find(pl => pl.code === winnerCode) : null;
 
     const revealPayload = {
       imposterName: imposterData.name,
       imposterTeam: imposterData.team,
       word: game.currentWord,
       imposterEscaped,
-      scorers: correctCodes.map(code => {
-        const p = game.players.find(pl => pl.code === code);
-        return p.team;
-      })
+      winnerTeam: winnerPlayer ? winnerPlayer.team : null
     };
 
     game.players.forEach(p => {
       io.to(p.id).emit('imposter-revealed', {
         ...revealPayload,
-        youScored: correctCodes.includes(p.code) || (imposterEscaped && p.code === game.imposter)
+        youScored: p.code === winnerCode || (imposterEscaped && p.code === game.imposter)
       });
     });
     io.to(game.host).emit('host-imposter-revealed', revealPayload);

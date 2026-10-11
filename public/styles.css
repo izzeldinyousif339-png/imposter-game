@@ -643,6 +643,42 @@ body {
 .host-word-card { margin-bottom: 1.5rem; }
 .host-word-card .word-card-word { font-size: 2rem; }
 
+/* Player tabs: Word / Suspects */
+.player-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 0.3rem;
+}
+.player-tab-btn {
+  flex: 1;
+  padding: 0.7rem 1rem;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 700;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.player-tab-btn.active {
+  background: linear-gradient(135deg, var(--orange-primary) 0%, var(--orange-light) 100%);
+  color: #1a0f00;
+  box-shadow: 0 4px 14px rgba(255, 127, 45, 0.3);
+}
+.player-tab-panel.hidden { display: none; }
+
+#btn-voting-time { margin-bottom: 0.75rem; width: 100%; }
+#btn-lock-in { margin-top: 1rem; width: 100%; animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+.suspicion-item .status.locked {
+  color: var(--success);
+  font-weight: 800;
+}
+
 /* Host-only live scores */
 .host-only-scores {
   margin-top: 2rem;

@@ -6,6 +6,8 @@ let playerCode = null;
 let teamName = null;
 let myVote = null;
 let allPlayers = [];
+let votingTimeActive = false;
+let lockedIn = false;
 
 // Host-only running total across every game played from this device this
 // session (survives Play Again, resets only on page reload). Keyed by house/team name.
@@ -99,6 +101,16 @@ document.getElementById('btn-mute').addEventListener('click', () => {
   updateMuteButton();
 });
 updateMuteButton();
+
+// ---------- Player tabs: Word / Suspects ----------
+function showPlayerTab(tab) {
+  document.getElementById('tab-btn-word').classList.toggle('active', tab === 'word');
+  document.getElementById('tab-btn-suspects').classList.toggle('active', tab === 'suspects');
+  document.getElementById('player-tab-word').classList.toggle('hidden', tab !== 'word');
+  document.getElementById('player-tab-suspects').classList.toggle('hidden', tab !== 'suspects');
+}
+document.getElementById('tab-btn-word').addEventListener('click', () => showPlayerTab('word'));
+document.getElementById('tab-btn-suspects').addEventListener('click', () => showPlayerTab('suspects'));
 
 // ---------- Confetti burst ----------
 function fireConfetti() {
@@ -290,7 +302,14 @@ socket.on('round-started', (data) => {
   }
 
   myVote = null;
+  votingTimeActive = false;
+  lockedIn = false;
+  showPlayerTab('word');
   document.getElementById('vote-status').textContent = '';
+  document.getElementById('suspects-heading').textContent = 'Suspect anyone? You can change your mind anytime.';
+  const lockBtn = document.getElementById('btn-lock-in');
+  lockBtn.classList.add('hidden');
+  lockBtn.disabled = true;
 
   const votingContainer = document.getElementById('voting-options');
   votingContainer.innerHTML = '';
@@ -309,6 +328,7 @@ socket.on('round-started', (data) => {
         socket.emit('cast-suspicion', { gameCode, suspicionCode: option.code });
         document.getElementById('vote-status').textContent = `✓ You suspect ${option.team}`;
         sfxVote();
+        if (votingTimeActive) document.getElementById('btn-lock-in').disabled = false;
       });
       votingContainer.appendChild(btn);
     });
@@ -321,7 +341,43 @@ socket.on('host-round-started', (data) => {
   document.getElementById('current-round').textContent = data.round;
   document.getElementById('max-rounds').textContent = data.maxRounds;
   document.getElementById('suspicions-list').innerHTML = '';
+  document.getElementById('btn-voting-time').classList.remove('hidden');
+  document.getElementById('btn-voting-time').disabled = false;
+  document.getElementById('btn-reveal').classList.add('hidden');
   document.getElementById('btn-reveal').disabled = false;
+});
+
+// ---------- Voting Time (host-triggered) ----------
+document.getElementById('btn-voting-time').addEventListener('click', () => {
+  socket.emit('start-voting-time', { gameCode });
+  document.getElementById('btn-voting-time').classList.add('hidden');
+  document.getElementById('btn-reveal').classList.remove('hidden');
+});
+
+socket.on('voting-time-started', () => {
+  if (currentRole !== 'player') return;
+  votingTimeActive = true;
+  showPlayerTab('suspects');
+  document.getElementById('suspects-heading').textContent = '⏰ VOTING TIME! Lock in your final answer.';
+  const lockBtn = document.getElementById('btn-lock-in');
+  lockBtn.classList.remove('hidden');
+  lockBtn.disabled = !myVote;
+});
+
+document.getElementById('btn-lock-in').addEventListener('click', () => {
+  if (!myVote) return;
+  socket.emit('lock-in-vote', { gameCode });
+});
+
+socket.on('vote-locked', () => {
+  lockedIn = true;
+  document.querySelectorAll('.vote-button').forEach(b => {
+    b.disabled = true;
+    b.style.pointerEvents = 'none';
+    b.style.opacity = '0.6';
+  });
+  document.getElementById('btn-lock-in').classList.add('hidden');
+  document.getElementById('vote-status').textContent = '🔒 Locked in — no more changes!';
 });
 
 // ---------- Host: live suspicion status (who suspects whom) ----------
@@ -332,7 +388,16 @@ socket.on('host-suspicion-status', (data) => {
   data.suspicions.forEach(s => {
     const item = el('div', `suspicion-item${s.voted ? ' voted' : ''}`);
     item.appendChild(el('span', 'team-name', s.team));
-    item.appendChild(el('span', `status${s.voted ? ' voted' : ''}`, s.voted ? `suspects ${s.suspectsTeam}` : 'Waiting...'));
+    let statusText = 'Waiting...';
+    let statusClass = 'status';
+    if (s.lockedIn) {
+      statusText = `🔒 locked in: ${s.lockedTeam}`;
+      statusClass = 'status locked';
+    } else if (s.voted) {
+      statusText = `suspects ${s.suspectsTeam}`;
+      statusClass = 'status voted';
+    }
+    item.appendChild(el('span', statusClass, statusText));
     list.appendChild(item);
   });
 });
@@ -364,13 +429,13 @@ socket.on('imposter-revealed', (data) => {
 
   document.getElementById('reveal-text').textContent = data.imposterEscaped
     ? `${data.imposterTeam} was the imposter and got away with it! The word was ${data.word}.`
-    : `${data.imposterTeam} was the imposter! The word was ${data.word}.`;
+    : `${data.imposterTeam} was the imposter! The word was ${data.word}. ${data.winnerTeam} locked in first!`;
 
   const youGotIt = document.getElementById('you-got-it');
   if (data.youScored) {
     youGotIt.textContent = data.imposterEscaped
       ? '✅ YOU EVADED CAPTURE — YOUR TEAM SCORES A POINT!'
-      : '✅ YOUR TEAM SCORES A POINT!';
+      : '✅ YOU LOCKED IN FIRST — YOUR TEAM SCORES A POINT!';
     youGotIt.classList.remove('hidden');
     sfxCorrect();
     fireConfetti();
@@ -392,8 +457,8 @@ socket.on('host-imposter-revealed', (data) => {
   summary.appendChild(el('strong', null, `${data.imposterTeam} was the imposter!`));
   summary.appendChild(el('p', null, `The word was ${data.word}.`));
   const scoredText = data.imposterEscaped
-    ? `No one guessed correctly — ${data.imposterTeam} scores a point for evading capture!`
-    : `${data.scorers.join(', ')} scored!`;
+    ? `No one locked in the correct answer — ${data.imposterTeam} scores a point for evading capture!`
+    : `${data.winnerTeam} locked in first — they score!`;
   summary.appendChild(el('p', null, scoredText));
   suspicionsList.appendChild(summary);
 
@@ -464,6 +529,8 @@ socket.on('game-restarted', () => {
   gameCode = null;
   teamName = null;
   myVote = null;
+  votingTimeActive = false;
+  lockedIn = false;
 });
 
 // Initialize — a dedicated launcher file (Host Game.html / Join Game.html) can jump

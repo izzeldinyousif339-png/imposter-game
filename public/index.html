@@ -70,7 +70,8 @@
             <div id="suspicions-list"></div>
           </div>
 
-          <button id="btn-reveal" class="btn btn-danger">🎃 REVEAL THE IMPOSTER</button>
+          <button id="btn-voting-time" class="btn btn-secondary">📢 CALL VOTING TIME</button>
+          <button id="btn-reveal" class="btn btn-danger hidden">🎃 REVEAL THE IMPOSTER</button>
 
           <div class="host-only-scores">
             <h3>📊 LIVE SCORES <span class="host-only-tag">(host only — players never see this)</span></h3>
@@ -120,21 +121,31 @@
         <div class="voting-container">
           <h2>Round <span id="player-round">1</span></h2>
 
-          <div id="word-card-innocent" class="word-card hidden">
-            <div class="word-card-label">THE SECRET WORD</div>
-            <div class="word-card-word" id="player-current-word">-</div>
-            <p class="word-card-hint">Give one verbal clue about it out loud when it's your turn. Don't say the word itself!</p>
+          <div class="player-tabs">
+            <button class="player-tab-btn active" id="tab-btn-word">🔮 Word</button>
+            <button class="player-tab-btn" id="tab-btn-suspects">🗳️ Suspects</button>
           </div>
 
-          <div id="word-card-imposter" class="word-card imposter hidden">
-            <div class="word-card-label">🎭 YOU'RE BLENDING IN</div>
-            <div class="word-card-word">IMPOSTER</div>
-            <p class="word-card-hint">You don't get the word. Listen to everyone's clues, bluff your own, and don't get caught.</p>
+          <div id="player-tab-word" class="player-tab-panel">
+            <div id="word-card-innocent" class="word-card hidden">
+              <div class="word-card-label">THE SECRET WORD</div>
+              <div class="word-card-word" id="player-current-word">-</div>
+              <p class="word-card-hint">Give one verbal clue about it out loud when it's your turn. Don't say the word itself!</p>
+            </div>
+
+            <div id="word-card-imposter" class="word-card imposter hidden">
+              <div class="word-card-label">🎭 YOU'RE BLENDING IN</div>
+              <div class="word-card-word">IMPOSTER</div>
+              <p class="word-card-hint">You don't get the word. Listen to everyone's clues, bluff your own, and don't get caught.</p>
+            </div>
           </div>
 
-          <h3>Suspect anyone? You can change your mind anytime.</h3>
-          <div id="voting-options" class="voting-grid"></div>
-          <p id="vote-status" class="status-message"></p>
+          <div id="player-tab-suspects" class="player-tab-panel hidden">
+            <h3 id="suspects-heading">Suspect anyone? You can change your mind anytime.</h3>
+            <div id="voting-options" class="voting-grid"></div>
+            <p id="vote-status" class="status-message"></p>
+            <button id="btn-lock-in" class="btn btn-danger hidden">🔒 LOCK IN FINAL ANSWER</button>
+          </div>
         </div>
       </div>
 
