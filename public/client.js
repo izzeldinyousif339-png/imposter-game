@@ -416,5 +416,16 @@ socket.on('host-disconnected', () => {
   location.reload();
 });
 
-// Initialize
-showScreen('start-screen');
+// Initialize — a dedicated launcher file (Host Game.html / Join Game.html) can jump
+// straight past the start screen via #host or #join in the URL. Those dedicated
+// links never expose a path to the other role, so their back buttons are hidden.
+const entryMode = location.hash.replace('#', '');
+if (entryMode === 'host') {
+  document.getElementById('btn-host-back').classList.add('hidden');
+  document.getElementById('btn-host').click();
+} else if (entryMode === 'join') {
+  document.getElementById('btn-player-back').classList.add('hidden');
+  document.getElementById('btn-player').click();
+} else {
+  showScreen('start-screen');
+}
