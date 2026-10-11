@@ -315,6 +315,7 @@ socket.on('round-started', (data) => {
 socket.on('host-round-started', (data) => {
   document.getElementById('host-current-word').textContent = data.word;
   document.getElementById('current-round').textContent = data.round;
+  document.getElementById('max-rounds').textContent = data.maxRounds;
   document.getElementById('suspicions-list').innerHTML = '';
   document.getElementById('btn-reveal').disabled = false;
 });
@@ -357,11 +358,15 @@ socket.on('imposter-revealed', (data) => {
   document.getElementById('player-playing').classList.add('hidden');
   document.getElementById('player-reveal').classList.remove('hidden');
 
-  document.getElementById('reveal-text').textContent =
-    `${data.imposterTeam} was the imposter! The word was ${data.word}.`;
+  document.getElementById('reveal-text').textContent = data.imposterEscaped
+    ? `${data.imposterTeam} was the imposter and got away with it! The word was ${data.word}.`
+    : `${data.imposterTeam} was the imposter! The word was ${data.word}.`;
 
   const youGotIt = document.getElementById('you-got-it');
   if (data.youScored) {
+    youGotIt.textContent = data.imposterEscaped
+      ? '✅ YOU EVADED CAPTURE — YOUR TEAM SCORES A POINT!'
+      : '✅ YOUR TEAM SCORES A POINT!';
     youGotIt.classList.remove('hidden');
     sfxCorrect();
     fireConfetti();
@@ -382,13 +387,13 @@ socket.on('host-imposter-revealed', (data) => {
   const summary = el('div', 'reveal-summary');
   summary.appendChild(el('strong', null, `${data.imposterTeam} was the imposter!`));
   summary.appendChild(el('p', null, `The word was ${data.word}.`));
-  const scoredText = data.scorers && data.scorers.length > 0
-    ? `${data.scorers.join(', ')} scored!`
-    : 'No one guessed correctly!';
+  const scoredText = data.imposterEscaped
+    ? `No one guessed correctly — ${data.imposterTeam} scores a point for evading capture!`
+    : `${data.scorers.join(', ')} scored!`;
   summary.appendChild(el('p', null, scoredText));
   suspicionsList.appendChild(summary);
 
-  if (data.scorers && data.scorers.length > 0) fireConfetti();
+  fireConfetti();
 });
 
 // ---------- Game ended ----------
@@ -414,6 +419,39 @@ socket.on('game-ended', (data) => {
 socket.on('host-disconnected', () => {
   alert('Host disconnected. Game ended.');
   location.reload();
+});
+
+// ---------- Play Again (host-only, resets everyone back to the join screen) ----------
+document.getElementById('btn-play-again').addEventListener('click', () => {
+  socket.emit('play-again', { gameCode });
+});
+
+socket.on('new-game-ready', (data) => {
+  gameCode = data.code;
+  document.getElementById('host-leaderboard').classList.add('hidden');
+  document.getElementById('host-lobby').classList.remove('hidden');
+  document.getElementById('game-code-display').textContent = gameCode;
+  document.getElementById('players-container').innerHTML = '';
+  document.getElementById('players-container').appendChild(el('p', 'placeholder', 'Waiting for players to join...'));
+  document.getElementById('player-count').textContent = '0';
+  document.getElementById('btn-start-game').disabled = true;
+  document.getElementById('players-needed-text').textContent = 'Need 4 players to begin';
+});
+
+socket.on('game-restarted', () => {
+  if (currentRole !== 'player') return;
+  document.getElementById('player-ended').classList.add('hidden');
+  document.getElementById('player-reveal').classList.add('hidden');
+  document.getElementById('player-playing').classList.add('hidden');
+  document.getElementById('player-lobby').classList.add('hidden');
+  document.getElementById('player-join').classList.remove('hidden');
+  document.getElementById('game-code-input').value = '';
+  document.getElementById('team-name-input').value = '';
+  document.getElementById('join-error').textContent = '';
+  playerCode = null;
+  gameCode = null;
+  teamName = null;
+  myVote = null;
 });
 
 // Initialize — a dedicated launcher file (Host Game.html / Join Game.html) can jump

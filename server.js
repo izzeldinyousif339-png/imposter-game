@@ -37,6 +37,24 @@ function pickImposter(game) {
   return game.players[Math.floor(Math.random() * game.players.length)];
 }
 
+function createGame(hostSocketId) {
+  const gameCode = generateGameCode();
+  const game = {
+    code: gameCode,
+    host: hostSocketId,
+    players: [],
+    gameState: 'lobby',
+    round: 0,
+    maxRounds: 1,
+    imposter: null,
+    currentWord: null,
+    suspicions: {},
+    scores: {}
+  };
+  games.set(gameCode, game);
+  return game;
+}
+
 function startRound(io, game, gameCode) {
   const imposter = pickImposter(game);
   game.players.forEach(p => { p.isImposter = false; });
@@ -88,23 +106,9 @@ function sendHostScores(io, game) {
 
 io.on('connection', (socket) => {
   socket.on('host-create-game', (callback) => {
-    const gameCode = generateGameCode();
-    const game = {
-      code: gameCode,
-      host: socket.id,
-      players: [],
-      gameState: 'lobby',
-      round: 0,
-      maxRounds: 3,
-      imposter: null,
-      currentWord: null,
-      suspicions: {},
-      scores: {}
-    };
-
-    games.set(gameCode, game);
-    socket.join(`game-${gameCode}`);
-    callback({ code: gameCode });
+    const game = createGame(socket.id);
+    socket.join(`game-${game.code}`);
+    callback({ code: game.code });
   });
 
   socket.on('player-join-game', (data, callback) => {
@@ -171,15 +175,22 @@ io.on('connection', (socket) => {
       .filter(([, suspicionCode]) => suspicionCode === game.imposter)
       .map(([playerCode]) => playerCode);
 
+    // Nobody caught the imposter — the imposter's own house scores instead.
+    const imposterEscaped = correctCodes.length === 0;
+
     correctCodes.forEach(code => {
       if (game.scores[code]) game.scores[code].score += 1;
     });
+    if (imposterEscaped && game.scores[game.imposter]) {
+      game.scores[game.imposter].score += 1;
+    }
     sendHostScores(io, game);
 
     const revealPayload = {
       imposterName: imposterData.name,
       imposterTeam: imposterData.team,
       word: game.currentWord,
+      imposterEscaped,
       scorers: correctCodes.map(code => {
         const p = game.players.find(pl => pl.code === code);
         return p.team;
@@ -189,7 +200,7 @@ io.on('connection', (socket) => {
     game.players.forEach(p => {
       io.to(p.id).emit('imposter-revealed', {
         ...revealPayload,
-        youScored: correctCodes.includes(p.code)
+        youScored: correctCodes.includes(p.code) || (imposterEscaped && p.code === game.imposter)
       });
     });
     io.to(game.host).emit('host-imposter-revealed', revealPayload);
@@ -208,6 +219,19 @@ io.on('connection', (socket) => {
         io.to(`game-${game.code}`).emit('game-ended', { leaderboard });
       }, 4000);
     }
+  });
+
+  socket.on('play-again', (data) => {
+    const game = games.get(data.gameCode);
+    if (!game || game.host !== socket.id) return;
+
+    // Send everyone who was in this game (host included) back to square one.
+    io.to(`game-${game.code}`).emit('game-restarted');
+    games.delete(game.code);
+
+    const newGame = createGame(socket.id);
+    socket.join(`game-${newGame.code}`);
+    socket.emit('new-game-ready', { code: newGame.code });
   });
 
   socket.on('disconnect', () => {
